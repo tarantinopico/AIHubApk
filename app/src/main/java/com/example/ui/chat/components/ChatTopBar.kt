@@ -6,6 +6,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -21,7 +22,8 @@ fun ChatTopBar(
     onOpenDrawer: () -> Unit,
     onNewChat: () -> Unit,
     onToggleModelSelector: () -> Unit,
-    onToggleSystemPrompt: () -> Unit
+    onToggleSystemPrompt: () -> Unit,
+    onShowStats: () -> Unit
 ) {
     val activeModel = state.models.find { it.id == state.activeModelId }
     val modelName = activeModel?.displayName ?: "Vyberte model"
@@ -52,7 +54,11 @@ fun ChatTopBar(
         Spacer(Modifier.weight(1f))
         
         IconButton(onClick = onToggleSystemPrompt) {
-            Icon(Icons.Default.Info, contentDescription = "System Prompt", tint = TextSecondary)
+            Icon(Icons.Default.Warning, contentDescription = "System Prompt", tint = TextSecondary)
+        }
+        
+        IconButton(onClick = onShowStats) {
+            Icon(Icons.Default.Info, contentDescription = "Statistiky", tint = TextSecondary)
         }
         
         IconButton(onClick = onNewChat) {

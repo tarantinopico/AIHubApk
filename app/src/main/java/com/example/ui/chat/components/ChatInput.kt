@@ -45,6 +45,7 @@ fun ChatInputBar(
     supportsImages: Boolean
 ) {
     val context = LocalContext.current
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
     
     val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -129,7 +130,10 @@ fun ChatInputBar(
                         .size(48.dp)
                         .clip(CircleShape)
                         .then(if (isGenerating) Modifier.background(SurfaceElevated) else Modifier.gradientBackground(CircleShape))
-                        .clickable(onClick = if (isGenerating) onCancel else onSend),
+                        .clickable(onClick = {
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                            if (isGenerating) onCancel() else onSend()
+                        }),
                     contentAlignment = Alignment.Center
                 ) {
                     if (isGenerating) {

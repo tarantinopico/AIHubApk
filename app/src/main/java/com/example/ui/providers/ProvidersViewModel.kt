@@ -34,7 +34,9 @@ data class ProvidersUiState(
     
     val showAddModelDialogForProviderId: String? = null,
     val testingKeyResult: String? = null,
-    val testingKeyLoading: Boolean = false
+    val testingKeyLoading: Boolean = false,
+    val testingKeyId: String? = null,
+    val loadingModelsForProviderId: String? = null
 )
 
 @HiltViewModel
@@ -137,12 +139,12 @@ class ProvidersViewModel @Inject constructor(
     }
 
     fun testApiKey(provider: Provider, apiKey: ApiKey) {
-        _state.update { it.copy(testingKeyLoading = true, testingKeyResult = null) }
+        _state.update { it.copy(testingKeyLoading = true, testingKeyId = apiKey.id, testingKeyResult = null) }
         viewModelScope.launch {
             try {
                 val actualKey = apiKeyRepository.getActualKey(apiKey.keyReference)
                 if (actualKey == null) {
-                    _state.update { it.copy(testingKeyLoading = false, testingKeyResult = "Klíč nelze načíst.") }
+                    _state.update { it.copy(testingKeyLoading = false, testingKeyId = null, testingKeyResult = "Klíč nelze načíst.") }
                     return@launch
                 }
                 
@@ -152,15 +154,15 @@ class ProvidersViewModel @Inject constructor(
                 }
                 when (val result = delegate.listModels()) {
                     is AppResult.Success -> {
-                        _state.update { it.copy(testingKeyLoading = false, testingKeyResult = "✅ Úspěch: Nalezeno ${result.data.size} modelů.") }
+                        _state.update { it.copy(testingKeyLoading = false, testingKeyId = null, testingKeyResult = "✅ Úspěch: Nalezeno ${result.data.size} modelů.") }
                     }
                     is AppResult.Error -> {
-                        _state.update { it.copy(testingKeyLoading = false, testingKeyResult = "❌ Chyba: ${result.message}") }
+                        _state.update { it.copy(testingKeyLoading = false, testingKeyId = null, testingKeyResult = "❌ Chyba: ${result.message}") }
                     }
                     is AppResult.Loading -> {}
                 }
             } catch (e: Exception) {
-                _state.update { it.copy(testingKeyLoading = false, testingKeyResult = "❌ Výjimka: ${e.message}") }
+                _state.update { it.copy(testingKeyLoading = false, testingKeyId = null, testingKeyResult = "❌ Výjimka: ${e.message}") }
             }
         }
     }
@@ -182,7 +184,7 @@ class ProvidersViewModel @Inject constructor(
                 return@launch
             }
             
-            _state.update { it.copy(isLoading = true) }
+            _state.update { it.copy(loadingModelsForProviderId = provider.id) }
             val delegate = when (provider.apiFormat) {
                 ApiFormat.GEMINI -> GeminiProvider(httpClient, actualKeyRaw)
                 ApiFormat.OPENAI_COMPATIBLE -> OpenAiCompatibleProvider(httpClient, provider.baseUrl ?: "https://api.openai.com/v1", actualKeyRaw)
@@ -210,10 +212,11 @@ class ProvidersViewModel @Inject constructor(
                             modelRepository.updateModel(existing.copy(name = remote.id, displayName = remote.name))
                         }
                     }
+                    _state.update { it.copy(loadingModelsForProviderId = null) }
                     forceRefreshData() // refresh the local list
                 }
                 is AppResult.Error -> {
-                    _state.update { it.copy(error = "Chyba při načítání modelů: ${res.message}", isLoading = false) }
+                    _state.update { it.copy(error = "Chyba při načítání modelů: ${res.message}", loadingModelsForProviderId = null) }
                 }
                 is AppResult.Loading -> {}
             }

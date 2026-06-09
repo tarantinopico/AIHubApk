@@ -103,7 +103,7 @@ class GeminiProvider(
                         } catch (e: Exception) { }
                     }
                 }
-                emit(ChatChunk.Done)
+                emit(ChatChunk.Done())
             }
         } catch (e: Exception) {
             throw e

@@ -35,6 +35,7 @@ fun AppTextField(
     singleLine: Boolean = true,
     leadingIcon: (@Composable () -> Unit)? = null,
     trailingIcon: (@Composable () -> Unit)? = null,
+    visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None
 ) {
     val shape = LocalAppShapes.current.large
     BasicTextField(
@@ -46,6 +47,7 @@ fun AppTextField(
         keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
         singleLine = singleLine,
+        visualTransformation = visualTransformation,
         decorationBox = { innerTextField ->
             Row(
                 modifier = Modifier

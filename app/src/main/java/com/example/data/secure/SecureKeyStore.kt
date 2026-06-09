@@ -34,4 +34,22 @@ class SecureKeyStore @Inject constructor(
     fun deleteKey(keyId: String) {
         sharedPreferences.edit().remove(keyId).apply()
     }
+
+    fun getAllKeys(): Map<String, String> {
+        val keys = mutableMapOf<String, String>()
+        sharedPreferences.all.forEach { (key, value) ->
+            if (value is String) {
+                keys[key] = value
+            }
+        }
+        return keys
+    }
+
+    fun importAllKeys(keys: Map<String, String>) {
+        val editor = sharedPreferences.edit()
+        keys.forEach { (key, value) ->
+            editor.putString(key, value)
+        }
+        editor.apply()
+    }
 }

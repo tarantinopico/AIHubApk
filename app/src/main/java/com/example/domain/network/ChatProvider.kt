@@ -14,7 +14,7 @@ data class ChatRequest(
 
 sealed interface ChatChunk {
     data class Text(val text: String) : ChatChunk
-    data object Done : ChatChunk
+    data class Done(val tokensUsed: Int? = null) : ChatChunk
     data class Error(val message: String, val throwable: Throwable? = null) : ChatChunk
 }
 

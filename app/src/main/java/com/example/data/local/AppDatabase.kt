@@ -14,8 +14,8 @@ import com.example.data.local.entity.*
         ConversationEntity::class,
         MessageEntity::class
     ],
-    version = 1,
-    exportSchema = true
+    version = 3,
+    exportSchema = false
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {

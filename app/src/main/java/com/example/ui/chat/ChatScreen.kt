@@ -75,7 +75,8 @@ fun ChatScreen(
                     onOpenDrawer = { coroutineScope.launch { drawerState.open() } },
                     onNewChat = { viewModel.onEvent(ChatEvent.NewConversation) },
                     onToggleModelSelector = { viewModel.onEvent(ChatEvent.ToggleModelSelector) },
-                    onToggleSystemPrompt = { viewModel.onEvent(ChatEvent.ToggleSystemPromptDialog) }
+                    onToggleSystemPrompt = { viewModel.onEvent(ChatEvent.ToggleSystemPromptDialog) },
+                    onShowStats = { viewModel.onEvent(ChatEvent.ToggleStatsDialog) }
                 )
             },
             snackbarHost = {
@@ -123,7 +124,8 @@ fun ChatScreen(
                     MessageList(
                         messages = state.messages,
                         isGenerating = state.isGenerating,
-                        onRegenerate = { id -> viewModel.onEvent(ChatEvent.RegenerateMessage(id)) }
+                        onRegenerate = { id -> viewModel.onEvent(ChatEvent.RegenerateMessage(id)) },
+                        onEdit = { msg -> viewModel.onEvent(ChatEvent.EditMessage(msg)) }
                     )
                 }
 
@@ -186,6 +188,35 @@ fun ChatScreen(
                         dismissButton = {
                             TextButton(onClick = { viewModel.onEvent(ChatEvent.ToggleSystemPromptDialog) }) {
                                 Text("Zrušit", color = TextSecondary)
+                            }
+                        },
+                        containerColor = SurfaceElevated
+                    )
+                }
+
+                if (state.isStatsDialogOpen) {
+                    val activeModel = state.models.find { it.id == state.activeModelId }
+                    val inputTokens = state.messages.filter { it.role == MessageRole.USER }.sumOf { it.tokensUsed ?: (it.content.length / 4) }
+                    val outputTokens = state.messages.filter { it.role == MessageRole.ASSISTANT }.sumOf { it.tokensUsed ?: (it.content.length / 4) }
+                    val totalTokens = inputTokens + outputTokens
+                    val cost = ((inputTokens / 1000.0) * (activeModel?.inputCostPer1k ?: 0.0)) + ((outputTokens / 1000.0) * (activeModel?.outputCostPer1k ?: 0.0))
+                    
+                    AlertDialog(
+                        onDismissRequest = { viewModel.onEvent(ChatEvent.ToggleStatsDialog) },
+                        title = { Text("Statistiky konverzace", color = TextPrimary) },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Vstupní tokeny: $inputTokens", style = AppTypography.bodyLarge, color = TextPrimary)
+                                Text("Výstupní tokeny: $outputTokens", style = AppTypography.bodyLarge, color = TextPrimary)
+                                HorizontalDivider(color = Surface)
+                                Text("Celkem tokenů: $totalTokens", style = AppTypography.titleMedium, color = TextPrimary)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text("Orientační cena: $${java.lang.String.format(java.util.Locale.US, "%.5f", cost)}", style = AppTypography.bodyMedium, color = TextSecondary)
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { viewModel.onEvent(ChatEvent.ToggleStatsDialog) }) {
+                                Text("Zavřít", color = GradientMiddle)
                             }
                         },
                         containerColor = SurfaceElevated

@@ -23,6 +23,8 @@ import com.example.domain.model.ApiKey
 import com.example.domain.model.Provider
 import com.example.ui.components.AppSwitch
 import com.example.ui.components.AppTextField
+import com.example.ui.components.EmptyState
+import com.example.ui.components.ShimmerEffect
 import com.example.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,17 +56,21 @@ fun ProvidersScreen(
         containerColor = Background
     ) { innerPadding ->
         if (state.isLoading && state.providers.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = GradientMiddle)
-            }
-        } else if (state.providers.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.CloudOff, contentDescription = null, tint = TextMuted, modifier = Modifier.size(64.dp).padding(bottom = 16.dp))
-                    Text("Zatím žádní provideři", style = AppTypography.titleMedium, color = TextPrimary)
-                    Text("Přidejte vlastního providera klávesou + nahoře", style = AppTypography.bodyMedium, color = TextSecondary)
+            Column(
+                modifier = Modifier.fillMaxSize().padding(innerPadding).padding(LocalAppSpacing.current.large),
+                verticalArrangement = Arrangement.spacedBy(LocalAppSpacing.current.medium)
+            ) {
+                repeat(4) {
+                    ShimmerEffect(modifier = Modifier.fillMaxWidth().height(120.dp))
                 }
             }
+        } else if (state.providers.isEmpty()) {
+            EmptyState(
+                icon = Icons.Default.CloudOff,
+                title = "Zatím žádní provideři",
+                description = "Přidejte vlastního providera klávesou + nahoře",
+                modifier = Modifier.padding(innerPadding)
+            )
         } else {
             LazyColumn(
                 modifier = Modifier
@@ -77,6 +83,8 @@ fun ProvidersScreen(
                     ProviderCard(
                         details = providerDetails,
                         isExpanded = state.expandedProviderId == providerDetails.provider.id,
+                        testingKeyId = state.testingKeyId,
+                        isLoadingModels = state.loadingModelsForProviderId == providerDetails.provider.id,
                         onExpandClick = { viewModel.toggleProviderExpansion(providerDetails.provider.id) },
                         onEnableToggle = { enabled -> viewModel.toggleProviderEnabled(providerDetails.provider, enabled) },
                         onRotationToggle = { enabled -> viewModel.toggleKeyRotation(providerDetails.provider, enabled) },
@@ -200,6 +208,8 @@ fun ProvidersScreen(
 fun ProviderCard(
     details: ProviderWithDetails,
     isExpanded: Boolean,
+    testingKeyId: String?,
+    isLoadingModels: Boolean,
     onExpandClick: () -> Unit,
     onEnableToggle: (Boolean) -> Unit,
     onRotationToggle: (Boolean) -> Unit,
@@ -270,8 +280,12 @@ fun ProviderCard(
                                 }
                                 Text("•••• •••• ••••", style = AppTypography.labelSmall, color = TextMuted)
                             }
-                            IconButton(onClick = { onTestKey(key) }, modifier = Modifier.size(28.dp)) {
-                                Icon(Icons.Default.Build, contentDescription = "Otestovat", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                            IconButton(onClick = { if (testingKeyId != key.id) onTestKey(key) }, modifier = Modifier.size(28.dp)) {
+                                if (testingKeyId == key.id) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = GradientMiddle, strokeWidth = 2.dp)
+                                } else {
+                                    Icon(Icons.Default.Build, contentDescription = "Otestovat", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                                }
                             }
                             IconButton(onClick = { onSetPrimaryKey(key.id) }, modifier = Modifier.size(28.dp)) {
                                 Icon(Icons.Default.Star, contentDescription = "Nastavit jako hlavní", tint = if (key.isPrimary) GradientMiddle else TextMuted, modifier = Modifier.size(16.dp))
@@ -294,7 +308,11 @@ fun ProviderCard(
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("Modely", style = AppTypography.titleSmall, color = GradientMiddle)
                         Row {
-                            TextButton(onClick = onLoadModels) {
+                            TextButton(onClick = { if (!isLoadingModels) onLoadModels() }) {
+                                if (isLoadingModels) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = GradientMiddle, strokeWidth = 2.dp)
+                                    Spacer(Modifier.width(8.dp))
+                                }
                                 Text("Načíst z API")
                             }
                             TextButton(onClick = onAddManualModel) {

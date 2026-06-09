@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.put
 import java.util.UUID
 import javax.inject.Inject
+import com.example.core.NetworkMonitor
 
 data class AttachmentInfo(
     val uriString: String,
@@ -36,6 +37,7 @@ data class ChatUiState(
     val attachments: List<AttachmentInfo> = emptyList(),
     val isSystemPromptDialogOpen: Boolean = false,
     val currentSystemPrompt: String = "",
+    val isStatsDialogOpen: Boolean = false,
     val conversationSearchQuery: String = ""
 )
 
@@ -45,7 +47,8 @@ class ChatViewModel @Inject constructor(
     private val messageRepository: MessageRepository,
     private val modelRepository: ModelRepository,
     private val providerRepository: ProviderRepository,
-    private val providerFactory: ProviderFactory
+    private val providerFactory: ProviderFactory,
+    private val networkMonitor: NetworkMonitor
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ChatUiState())
@@ -53,9 +56,21 @@ class ChatViewModel @Inject constructor(
 
     private var currentChatJob: Job? = null
     private var activeConversationJob: Job? = null
+    
+    private var isOnline = true
 
     init {
         loadInitialData()
+        
+        viewModelScope.launch {
+            networkMonitor.isOnline.collect { online ->
+                isOnline = online
+                if (online) {
+                    // Try to send pending offline messages
+                    processOfflineQueue()
+                }
+            }
+        }
     }
 
     private fun loadInitialData() {
@@ -89,7 +104,7 @@ class ChatViewModel @Inject constructor(
             is ChatEvent.SelectModel -> _state.update { it.copy(activeModelId = event.id, isModelSelectorOpen = false) }
             is ChatEvent.ToggleModelSelector -> _state.update { it.copy(isModelSelectorOpen = !it.isModelSelectorOpen) }
             is ChatEvent.SendMessage -> sendMessage()
-            is ChatEvent.UpdateInput -> _state.update { it.copy(inputText = event.text) }
+            is ChatEvent.UpdateInput -> updateInput(event.text)
             is ChatEvent.DismissError -> _state.update { it.copy(error = null) }
             is ChatEvent.RegenerateMessage -> regenerateMessage(event.messageId)
             is ChatEvent.CancelGeneration -> cancelGeneration()
@@ -101,6 +116,35 @@ class ChatViewModel @Inject constructor(
             is ChatEvent.DeleteConversation -> deleteConversation(event.id)
             is ChatEvent.RenameConversation -> renameConversation(event.id, event.newTitle)
             is ChatEvent.UpdateSearchQuery -> updateSearchQuery(event.query)
+            is ChatEvent.EditMessage -> editMessage(event.message)
+            is ChatEvent.ToggleStatsDialog -> _state.update { it.copy(isStatsDialogOpen = !it.isStatsDialogOpen) }
+        }
+    }
+
+    private fun updateInput(text: String) {
+        _state.update { it.copy(inputText = text) }
+        val convId = state.value.activeConversationId
+        if (convId != null) {
+            viewModelScope.launch {
+                val conv = conversationRepository.getConversationById(convId)
+                if (conv != null) {
+                    conversationRepository.updateConversation(conv.copy(draft = text))
+                }
+            }
+        }
+    }
+    private fun editMessage(message: com.example.domain.model.Message) {
+        val conversationId = _state.value.activeConversationId ?: return
+        viewModelScope.launch {
+            val allMessages = messageRepository.getMessagesForConversation(conversationId).first()
+            val messageIndex = allMessages.indexOfFirst { it.id == message.id }
+            if (messageIndex >= 0) {
+                val messagesToDelete = allMessages.subList(messageIndex, allMessages.size)
+                messagesToDelete.forEach { msg ->
+                    messageRepository.deleteMessage(msg.id)
+                }
+            }
+            _state.update { it.copy(inputText = message.content) }
         }
     }
 
@@ -167,7 +211,7 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun selectConversation(id: String) {
-        _state.update { it.copy(activeConversationId = id, isModelSelectorOpen = false, attachments = emptyList()) }
+        _state.update { it.copy(activeConversationId = id, isModelSelectorOpen = false, attachments = emptyList(), inputText = "") }
         activeConversationJob?.cancel()
         currentChatJob?.cancel()
         _state.update { it.copy(isGenerating = false) }
@@ -175,7 +219,10 @@ class ChatViewModel @Inject constructor(
         activeConversationJob = viewModelScope.launch {
             val conv = conversationRepository.getConversationById(id)
             if (conv != null) {
-                _state.update { it.copy(activeModelId = conv.modelId) }
+                _state.update { it.copy(
+                    activeModelId = conv.modelId,
+                    inputText = conv.draft ?: ""
+                ) }
             }
             messageRepository.getMessagesForConversation(id).collect { msgs ->
                 _state.update { it.copy(messages = msgs) }
@@ -282,7 +329,35 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    private fun processOfflineQueue() {
+        viewModelScope.launch {
+            val convId = state.value.activeConversationId ?: return@launch
+            val messages = messageRepository.getMessagesForConversation(convId).first()
+            val pendingAiMsg = messages.lastOrNull { it.role == MessageRole.ASSISTANT && it.status == MessageStatus.ERROR }
+            if (pendingAiMsg != null) {
+                // Not automatically retrying to avoid loops, let the user regenerate
+            }
+        }
+    }
+
     private suspend fun generateResponse(conversationId: String, modelId: String, systemPrompt: String?) {
+        if (!isOnline) {
+            _state.update { it.copy(error = "Jste offline. Zpráva se odešle po připojení k síti.") }
+            val aiMsgId = UUID.randomUUID().toString()
+            val aiMsg = Message(
+                id = aiMsgId,
+                conversationId = conversationId,
+                role = MessageRole.ASSISTANT,
+                content = "Čekám na připojení k síti...",
+                attachmentsJson = null,
+                tokensUsed = null,
+                createdAt = System.currentTimeMillis() + 1,
+                status = MessageStatus.ERROR
+            )
+            messageRepository.insertMessage(aiMsg)
+            return
+        }
+
         _state.update { it.copy(isGenerating = true, error = null) }
         
         val aiMsgId = UUID.randomUUID().toString()
@@ -300,50 +375,67 @@ class ChatViewModel @Inject constructor(
 
         currentChatJob?.cancel()
         currentChatJob = viewModelScope.launch {
-            try {
-                val model = modelRepository.getModelById(modelId)
-                    ?: throw java.lang.Exception("Model nebyl nalezen.")
-                val provider = providerFactory.createActiveProvider(model.providerId)
-                
-                val history = messageRepository.getMessagesForConversation(conversationId)
-                    .first()
-                    .filter { it.status == MessageStatus.SENT && it.id != aiMsgId }
-                
-                val request = ChatRequest(
-                    modelId = model.name,
-                    messages = history,
-                    systemPrompt = systemPrompt
-                )
+            var accumulatedContent = ""
+            var attempt = 0
+            val maxAttempts = 3
+            var delayMs = 1000L
 
-                var accumulatedContent = ""
-                provider.streamChat(request).collect { chunk ->
-                    when (chunk) {
-                        is ChatChunk.Text -> {
-                            accumulatedContent += chunk.text
-                            messageRepository.updateMessage(aiMsg.copy(content = accumulatedContent))
-                        }
-                        is ChatChunk.Done -> {
-                            messageRepository.updateMessage(aiMsg.copy(content = accumulatedContent, status = MessageStatus.SENT))
-                        }
-                        is ChatChunk.Error -> {
-                            _state.update { it.copy(error = chunk.message) }
-                            messageRepository.updateMessage(aiMsg.copy(content = accumulatedContent, status = MessageStatus.ERROR))
+            var success = false
+            while (attempt < maxAttempts && !success) {
+                try {
+                    val model = modelRepository.getModelById(modelId)
+                        ?: throw java.lang.Exception("Model nebyl nalezen.")
+                    val provider = providerFactory.createActiveProvider(model.providerId)
+                    
+                    val history = messageRepository.getMessagesForConversation(conversationId)
+                        .first()
+                        .filter { it.status == MessageStatus.SENT && it.id != aiMsgId }
+                    
+                    val request = ChatRequest(
+                        modelId = model.name,
+                        messages = history,
+                        systemPrompt = systemPrompt
+                    )
+
+                    provider.streamChat(request).collect { chunk ->
+                        when (chunk) {
+                            is ChatChunk.Text -> {
+                                accumulatedContent += chunk.text
+                                messageRepository.updateMessage(aiMsg.copy(content = accumulatedContent))
+                            }
+                            is ChatChunk.Done -> {
+                                val tokensUsed = chunk.tokensUsed ?: ((accumulatedContent.length / 4) + (request.messages.sumOf { it.content.length } / 4))
+                                messageRepository.updateMessage(aiMsg.copy(content = accumulatedContent, status = MessageStatus.SENT, tokensUsed = tokensUsed))
+                                success = true
+                            }
+                            is ChatChunk.Error -> {
+                                throw java.lang.Exception(chunk.message)
+                            }
                         }
                     }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    val currentMsg = messageRepository.getMessageById(aiMsgId)
+                    if (currentMsg != null) {
+                        messageRepository.updateMessage(currentMsg.copy(status = MessageStatus.SENT))
+                    }
+                    return@launch // Stopped by user
+                } catch (e: Exception) {
+                    attempt++
+                    if (attempt >= maxAttempts) {
+                        val currentMsg = messageRepository.getMessageById(aiMsgId)
+                        if (currentMsg != null) {
+                            val finalContent = if (accumulatedContent.isEmpty()) "" else "$accumulatedContent\n\n[Přerušeno kvůli chybě sítě]"
+                            messageRepository.updateMessage(currentMsg.copy(content = finalContent, status = MessageStatus.ERROR))
+                        }
+                        _state.update { it.copy(error = "Chyba sítě po $maxAttempts pokusech: ${e.localizedMessage}") }
+                        return@launch
+                    }
+                    kotlinx.coroutines.delay(delayMs)
+                    delayMs *= 2 // Exponential backoff
                 }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                // Generování bylo zrušeno
-                val currentMsg = messageRepository.getMessageById(aiMsgId)
-                if (currentMsg != null) {
-                    messageRepository.updateMessage(currentMsg.copy(status = MessageStatus.SENT))
-                }
-            } catch (e: Exception) {
-                val currentMsg = messageRepository.getMessageById(aiMsgId)
-                if (currentMsg != null) {
-                    messageRepository.updateMessage(currentMsg.copy(status = MessageStatus.ERROR))
-                }
-                _state.update { it.copy(error = e.localizedMessage ?: "Neznámá chyba při generování") }
-            } finally {
+            }
+        }.apply {
+            invokeOnCompletion { 
                 _state.update { it.copy(isGenerating = false) }
             }
         }
@@ -368,4 +460,6 @@ sealed interface ChatEvent {
     data class DeleteConversation(val id: String) : ChatEvent
     data class RenameConversation(val id: String, val newTitle: String) : ChatEvent
     data class UpdateSearchQuery(val query: String) : ChatEvent
+    data class EditMessage(val message: com.example.domain.model.Message) : ChatEvent
+    data object ToggleStatsDialog : ChatEvent
 }

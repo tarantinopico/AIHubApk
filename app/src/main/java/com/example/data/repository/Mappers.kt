@@ -9,11 +9,11 @@ fun Provider.toEntity() = ProviderEntity(id, name, type, baseUrl, apiFormat, isE
 fun ApiKeyEntity.toDomain() = ApiKey(id, providerId, keyReference, label, isPrimary, rotationOrder, isDisabledUntil)
 fun ApiKey.toEntity() = ApiKeyEntity(id, providerId, keyReference, label, isPrimary, rotationOrder, isDisabledUntil)
 
-fun ModelEntity.toDomain() = AiModel(id, providerId, name, displayName, supportsImages, supportsFiles, contextLength, isFavorite)
-fun AiModel.toEntity() = ModelEntity(id, providerId, name, displayName, supportsImages, supportsFiles, contextLength, isFavorite)
+fun ModelEntity.toDomain() = AiModel(id, providerId, name, displayName, supportsImages, supportsFiles, contextLength, isFavorite, inputCostPer1k, outputCostPer1k)
+fun AiModel.toEntity() = ModelEntity(id, providerId, name, displayName, supportsImages, supportsFiles, contextLength, isFavorite, inputCostPer1k, outputCostPer1k)
 
-fun ConversationEntity.toDomain() = Conversation(id, title, modelId, systemPrompt, createdAt, updatedAt)
-fun Conversation.toEntity() = ConversationEntity(id, title, modelId, systemPrompt, createdAt, updatedAt)
+fun ConversationEntity.toDomain() = Conversation(id, title, modelId, systemPrompt, draft, createdAt, updatedAt)
+fun Conversation.toEntity() = ConversationEntity(id, title, modelId, systemPrompt, draft, createdAt, updatedAt)
 
 fun MessageEntity.toDomain() = Message(id, conversationId, role, content, attachmentsJson, tokensUsed, createdAt, status)
 fun Message.toEntity() = MessageEntity(id, conversationId, role, content, attachmentsJson, tokensUsed, createdAt, status)

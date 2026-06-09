@@ -72,8 +72,19 @@ fun DrawerContent(
         Spacer(Modifier.height(LocalAppSpacing.current.medium))
         Text("Konverzace", style = AppTypography.labelMedium, color = TextMuted, modifier = Modifier.padding(vertical = LocalAppSpacing.current.small))
         
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            items(state.filteredConversations, key = { it.id }) { conv ->
+        if (state.filteredConversations.isEmpty()) {
+            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                Text(
+                    text = if (state.conversations.isEmpty()) "Zatím žádné konverzace — začni první zprávou!" else "Nic jsme nenašli — zkus jiná slova.",
+                    style = AppTypography.bodySmall,
+                    color = TextSecondary,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(state.filteredConversations, key = { it.id }) { conv ->
                 var showOptions by remember { mutableStateOf(false) }
                 var showRenameDialog by remember { mutableStateOf(false) }
                 val isActive = conv.id == state.activeConversationId
@@ -146,6 +157,7 @@ fun DrawerContent(
                 }
             }
         }
+    }
 
         HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
         

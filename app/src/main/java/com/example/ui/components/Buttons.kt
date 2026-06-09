@@ -18,6 +18,13 @@ import com.example.ui.theme.AppTypography
 import com.example.ui.theme.LocalAppShapes
 import com.example.ui.theme.LocalAppSpacing
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.draw.scale
+
 @Composable
 fun GradientButton(
     text: String,
@@ -26,16 +33,25 @@ fun GradientButton(
     enabled: Boolean = true
 ) {
     val shape = LocalAppShapes.current.extraLarge
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(targetValue = if (isPressed) 0.95f else 1f, label = "ButtonScale")
     
     Box(
         modifier = modifier
+            .scale(scale)
             .height(48.dp)
             .clip(shape)
             .then(
                 if (enabled) Modifier.gradientBackground(shape)
                 else Modifier.background(com.example.ui.theme.SurfaceElevated)
             )
-            .clickable(enabled = enabled, onClick = onClick),
+            .clickable(
+                interactionSource = interactionSource,
+                indication = androidx.compose.foundation.LocalIndication.current,
+                enabled = enabled,
+                onClick = onClick
+            ),
         contentAlignment = Alignment.Center
     ) {
         Text(

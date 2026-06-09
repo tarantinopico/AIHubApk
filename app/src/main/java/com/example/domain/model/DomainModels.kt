@@ -34,7 +34,9 @@ data class AiModel(
     val supportsImages: Boolean,
     val supportsFiles: Boolean,
     val contextLength: Int,
-    val isFavorite: Boolean
+    val isFavorite: Boolean = false,
+    val inputCostPer1k: Double = 0.0,
+    val outputCostPer1k: Double = 0.0
 )
 
 data class Conversation(
@@ -42,6 +44,7 @@ data class Conversation(
     val title: String,
     val modelId: String,
     val systemPrompt: String?,
+    val draft: String? = null,
     val createdAt: Long,
     val updatedAt: Long
 )

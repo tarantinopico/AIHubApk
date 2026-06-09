@@ -85,7 +85,7 @@ class OpenAiCompatibleProvider(
                     if (line.startsWith("data: ")) {
                         val data = line.substring(6).trim()
                         if (data == "[DONE]") {
-                            emit(ChatChunk.Done)
+                            emit(ChatChunk.Done())
                             break
                         }
                         
