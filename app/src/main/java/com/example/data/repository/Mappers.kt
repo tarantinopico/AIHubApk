@@ -1,0 +1,19 @@
+package com.example.data.repository
+
+import com.example.data.local.entity.*
+import com.example.domain.model.*
+
+fun ProviderEntity.toDomain() = Provider(id, name, type, baseUrl, apiFormat, isEnabled, keyRotationEnabled, createdAt)
+fun Provider.toEntity() = ProviderEntity(id, name, type, baseUrl, apiFormat, isEnabled, keyRotationEnabled, createdAt)
+
+fun ApiKeyEntity.toDomain() = ApiKey(id, providerId, keyReference, label, isPrimary, rotationOrder, isDisabledUntil)
+fun ApiKey.toEntity() = ApiKeyEntity(id, providerId, keyReference, label, isPrimary, rotationOrder, isDisabledUntil)
+
+fun ModelEntity.toDomain() = AiModel(id, providerId, name, displayName, supportsImages, supportsFiles, contextLength, isFavorite)
+fun AiModel.toEntity() = ModelEntity(id, providerId, name, displayName, supportsImages, supportsFiles, contextLength, isFavorite)
+
+fun ConversationEntity.toDomain() = Conversation(id, title, modelId, systemPrompt, createdAt, updatedAt)
+fun Conversation.toEntity() = ConversationEntity(id, title, modelId, systemPrompt, createdAt, updatedAt)
+
+fun MessageEntity.toDomain() = Message(id, conversationId, role, content, attachmentsJson, tokensUsed, createdAt, status)
+fun Message.toEntity() = MessageEntity(id, conversationId, role, content, attachmentsJson, tokensUsed, createdAt, status)

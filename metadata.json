@@ -1,0 +1,6 @@
+{
+  "name": "AI Chatbot Hub",
+  "description": "Nativní Android chatbot aplikace s podporou více providerů (Gemini, Groq, NVIDIA), vlastních API klíčů a streamování odpovědí.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
