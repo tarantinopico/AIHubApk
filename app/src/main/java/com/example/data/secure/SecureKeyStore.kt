@@ -11,17 +11,44 @@ import javax.inject.Singleton
 class SecureKeyStore @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
+    private val masterKey by lazy {
+        MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+    }
 
-    private val sharedPreferences = EncryptedSharedPreferences.create(
-        context,
-        "api_keys_secure_prefs",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
+    private val sharedPreferences by lazy {
+        try {
+            EncryptedSharedPreferences.create(
+                context,
+                "api_keys_secure_prefs",
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        } catch (e: Exception) {
+            // Při poškození Keystoru nebo změně device locku smazat a vytvořit znovu
+            context.getSharedPreferences("api_keys_secure_prefs", Context.MODE_PRIVATE)
+                .edit().clear().apply()
+            val alias = "_androidx_security_master_key_"
+            val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore")
+            keyStore.load(null)
+            if (keyStore.containsAlias(alias)) {
+                keyStore.deleteEntry(alias)
+            }
+            // Zkusíme vytvořit poškozený soubor znovu
+            val backupKey = MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
+            EncryptedSharedPreferences.create(
+                context,
+                "api_keys_secure_prefs",
+                backupKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        }
+    }
 
     fun saveKey(keyId: String, apiKey: String) {
         sharedPreferences.edit().putString(keyId, apiKey).apply()

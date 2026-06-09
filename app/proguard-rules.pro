@@ -27,3 +27,14 @@
 # Compose
 -keep class androidx.compose.** { *; }
 
+# Models
+-keep class com.example.domain.model.** { *; }
+-keep class com.example.data.remote.model.** { *; }
+-keep class com.example.data.local.entity.** { *; }
+
+# Hilt & Dagger
+-keep class dagger.hilt.** { *; }
+-keep class * extends dagger.hilt.android.internal.managers.ActivityComponentManager
+-keep class * extends dagger.hilt.android.internal.managers.ApplicationComponentManager
+-keep class * extends dagger.hilt.android.internal.managers.FragmentComponentManager
+
